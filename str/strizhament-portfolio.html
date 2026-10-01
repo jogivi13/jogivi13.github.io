@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Геоинформационный анализ рельефа горы Стрижамент</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          paper:    '#f5f1e8',
+          parchment:'#ece5d6',
+          contour:  '#c9bda3',
+          ink:      '#2b2b26',
+          moss:     '#8ba888',
+          ridge:    '#b08d57',
+          ochre:    '#c98a3a',
+          clay:     '#a1362c'
+        },
+        fontFamily: {
+          display: ['Georgia', 'Times New Roman', 'serif'],
+          sans: ['"Helvetica Neue"', 'Arial', 'sans-serif']
+        }
+      }
+    }
+  }
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { background-color: #f5f1e8; }
+
+  .contour-bg {
+    background-image:
+      repeating-radial-gradient(circle at 20% 30%, transparent 0 38px, rgba(43,43,38,.06) 38px 39px),
+      repeating-radial-gradient(circle at 80% 70%, transparent 0 52px, rgba(43,43,38,.05) 52px 53px),
+      repeating-linear-gradient(0deg, transparent 0 71px, rgba(43,43,38,.035) 71px 72px);
+  }
+  .num { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+  .map-frame { border: 1px solid #c9bda3; box-shadow: 0 1px 0 #fff inset, 0 24px 60px -30px rgba(43,43,38,.45); }
+  .hairline { border-top: 1px solid rgba(201,189,163,.75); }
+  .rule { height: 3px; width: 54px; background: #a1362c; }
+  ::selection { background: #c98a3a; color: #f5f1e8; }
+
+  .prose-r p { margin-bottom: 1.15rem; line-height: 1.8; }
+  .prose-r p:last-child { margin-bottom: 0; }
+
+  /* ── просмотрщик листов ── */
+  .stage {
+    position: relative; height: 380px; overflow: hidden;
+    background: repeating-linear-gradient(45deg, #efe9dc 0 12px, #e9e2d3 12px 24px);
+    cursor: grab; touch-action: none; user-select: none;
+  }
+  .stage.dragging { cursor: grabbing; }
+  .pane { position: absolute; inset: 0; overflow: hidden; }
+  .pane img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; transform-origin: center center; will-change: transform;
+    pointer-events: none; -webkit-user-drag: none;
+  }
+  .stage.compare { display: flex; }
+  .stage.compare .pane { position: relative; inset: auto; flex: 1 1 50%; }
+  .stage.compare .pane + .pane { border-left: 1px solid #c9bda3; }
+  .pane-ph {
+    position: absolute; inset: 0; display: none; place-items: center;
+    text-align: center; padding: 24px; background: rgba(245,241,232,.55);
+  }
+  .pane-tag {
+    position: absolute; left: 10px; bottom: 10px; z-index: 5;
+    background: rgba(245,241,232,.92); border: 1px solid #c9bda3;
+    font-size: 11px; letter-spacing: .08em; padding: 3px 8px; color: #2b2b26;
+  }
+
+  /* ── элементы легенды ── */
+  .lg-row { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; line-height: 1.45; color: rgba(43,43,38,.8); }
+  .lg-line { flex: none; height: 3px; width: 26px; margin-top: 8px; border-radius: 1px; }
+  .lg-fill { flex: none; width: 26px; height: 14px; margin-top: 2px; border: 1px solid rgba(43,43,38,.18); }
+  .lg-tri { flex: none; width: 0; height: 0; margin-top: 3px;
+    border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid #2b2b26; }
+  .lg-dot { flex: none; width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; background: #6b6b6b; }
+
+  #viewerWrap:fullscreen { background: #f5f1e8; display: flex; flex-direction: column; }
+  #viewerWrap:fullscreen #stage { flex: 1 1 auto; height: auto; }
+
+  .drop-overlay { position: fixed; inset: 0; z-index: 90; display: none; place-items: center; }
+  .drop-overlay.on { display: grid; background: rgba(43,43,38,.72); backdrop-filter: blur(3px); }
+
+  .step-num {
+    flex: none; width: 30px; height: 30px; border: 1px solid #c9bda3; background: #f5f1e8;
+    display: grid; place-items: center; font-size: 12px; color: #a1362c;
+  }
+</style>
+</head>
+<body class="text-ink font-sans antialiased">
+
+<!-- ─── НАВИГАЦИЯ ─── -->
+<header class="sticky top-0 z-50 bg-paper/90 backdrop-blur border-b border-contour/70">
+  <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-3">
+      <span class="w-7 h-7 rounded-sm bg-clay/10 border border-clay/60 grid place-items-center text-clay text-xs font-bold">▲</span>
+      <span class="font-display text-lg tracking-wide">Стрижамент<span class="text-ridge">·</span>рельеф</span>
+    </a>
+    <nav class="hidden md:flex items-center gap-6 text-sm text-ink/70">
+      <a href="#territory" class="hover:text-ink transition">Территория</a>
+      <a href="#data" class="hover:text-ink transition">Данные и методика</a>
+      <a href="#maps" class="hover:text-ink transition">Карты серии</a>
+      <a href="#atlas" class="hover:text-ink transition">Атлас</a>
+      <a href="#sources" class="hover:text-ink transition">Источники</a>
+    </nav>
+    <button id="loadTop" class="inline-flex items-center gap-2 text-sm border border-ink/25 hover:border-ink px-4 py-2 rounded-sm transition">
+      Загрузить листы
+    </button>
+  </div>
+</header>
+
+<!-- ─── ГЕРОЙ ─── -->
+<section id="top" class="contour-bg relative overflow-hidden">
+  <div class="max-w-6xl mx-auto px-6 pt-20 pb-16 md:pt-28 md:pb-20">
+    <p class="text-xs uppercase tracking-[0.35em] text-ridge mb-6">Курсовая работа · 2026</p>
+    <h1 class="font-display text-4xl md:text-6xl lg:text-7xl leading-[1.06] max-w-4xl">
+      Геоинформационный анализ рельефа<br class="hidden md:block"> горы Стрижамент
+    </h1>
+    <p class="mt-8 max-w-2xl text-ink/70 text-lg leading-relaxed">
+      Гора Стрижамент является высшей точкой Ставропольской возвышенности: её максимальная высота
+      достигает 831 м над уровнем моря. Благодаря этому она занимает господствующее положение
+      над окружающими равнинными пространствами и существенно влияет на местные природные процессы.
+    </p>
+    <div class="mt-10 flex flex-wrap items-center gap-4">
+      <a href="#maps" class="inline-flex items-center gap-2 bg-ink text-paper px-6 py-3 rounded-sm hover:bg-clay transition text-sm">
+        Серия карт
+      </a>
+      <a href="#atlas" class="inline-flex items-center gap-2 border border-ink/25 hover:border-ink px-6 py-3 rounded-sm transition text-sm">
+        Интерактивный атлас
+      </a>
+    </div>
+
+    <div class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px bg-contour/60 border border-contour/60">
+      <div class="bg-paper/70 px-5 py-4">
+        <div class="font-display text-3xl num">831<span class="text-base text-ridge"> м</span></div>
+        <div class="text-xs text-ink/60 mt-1">высшая точка</div>
+      </div>
+      <div class="bg-paper/70 px-5 py-4">
+        <div class="font-display text-3xl num">380<span class="text-base text-ridge"> м</span></div>
+        <div class="text-xs text-ink/60 mt-1">перепад высот</div>
+      </div>
+      <div class="bg-paper/70 px-5 py-4">
+        <div class="font-display text-3xl num">30<span class="text-base text-ridge"> м</span></div>
+        <div class="text-xs text-ink/60 mt-1">разрешение ЦМР SRTM</div>
+      </div>
+      <div class="bg-paper/70 px-5 py-4">
+        <div class="font-display text-3xl num">4</div>
+        <div class="text-xs text-ink/60 mt-1">карты в серии</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── ТЕРРИТОРИЯ ─── -->
+<section id="territory" class="max-w-6xl mx-auto px-6 py-20 md:py-24">
+  <div class="grid md:grid-cols-12 gap-10 md:gap-14">
+    <div class="md:col-span-4">
+      <div class="rule mb-6"></div>
+      <h2 class="font-display text-3xl md:text-4xl">Территория исследования</h2>
+      <p class="text-sm text-ink/55 mt-4 leading-relaxed">
+        Физико-географическая характеристика горного массива: морфология, геологическое строение,
+        климат, почвы, растительность и природоохранный статус.
+      </p>
+    </div>
+
+    <div class="md:col-span-8 prose-r text-ink/75 text-[15.5px]">
+      <h3 class="font-display text-xl mb-3">Рельеф и морфология</h3>
+      <p>
+        В геоморфологическом отношении Стрижамент представляет собой типичную столовую гору,
+        сформировавшуюся в результате длительных денудационных процессов. Для подобных форм рельефа
+        характерны плоская или слабоволнистая вершина и относительно крутые склоны, расчленённые
+        эрозионной сетью. Вершинное плато вытянуто в широтном направлении и имеет останцовый характер
+        происхождения. Склоны местами отличаются значительной крутизной, а в отдельных участках
+        встречаются обрывистые формы рельефа. На периферии плато активно развиты овражно-балочные
+        системы, обусловленные действием поверхностного стока и процессами линейной эрозии.
+      </p>
+
+      <h3 class="font-display text-xl mt-10 mb-3">Геологическое строение</h3>
+      <p>
+        Современный рельеф горы тесно связан с особенностями её геологического строения. В основании
+        массива залегают осадочные породы палеогенового и неогенового возраста. Наиболее устойчивыми
+        к разрушению являются плотные кварцевые песчаники хадумского горизонта олигоценового возраста,
+        формирующие своеобразный защитный слой на вершине горы. Именно наличие этих прочных пород
+        обеспечило сохранение останцового плато в условиях длительного разрушения окружающих менее
+        устойчивых толщ. Эти породы обладают повышенной способностью к водонасыщению, вследствие чего
+        на склонах Стрижамента широко развиты оползневые процессы. Подобные процессы оказывают
+        существенное влияние на морфологию склонов и определяют высокую динамичность рельефообразования
+        в пределах исследуемой территории.
+      </p>
+
+      <h3 class="font-display text-xl mt-10 mb-3">Климат</h3>
+      <p>
+        Климатические условия района в целом соответствуют умеренно континентальному типу, однако
+        благодаря значительной высоте и особенностям рельефа на территории Стрижамента формируется
+        собственный локальный микроклимат, обладающий чертами горного. Вершинная часть горы отличается
+        более низкими температурами воздуха и повышенным количеством атмосферных осадков по сравнению
+        с прилегающими равнинными территориями. Среднегодовое количество осадков достигает 600–700 мм,
+        что значительно превышает показатели степных районов центрального Предкавказья. Повышенная
+        влажность, частые туманы и более продолжительное сохранение снежного покрова создают
+        благоприятные условия для развития древесной растительности и лесных экосистем.
+      </p>
+
+      <h3 class="font-display text-xl mt-10 mb-3">Почвенный покров</h3>
+      <p>
+        Почвенный покров района отличается значительным разнообразием и тесно связан с особенностями
+        рельефа и растительности. На платообразной вершине и пологих склонах получили распространение
+        серые лесные почвы и выщелоченные чернозёмы, обладающие сравнительно высоким уровнем
+        плодородия. На крутых склонах, подверженных активной эрозии, почвенный покров менее мощный
+        и местами сильно смыт. В условиях повышенного увлажнения и лесной растительности формируются
+        благоприятные условия для накопления гумуса и развития богатого растительного покрова.
+      </p>
+
+      <h3 class="font-display text-xl mt-10 mb-3">Растительность</h3>
+      <p>
+        Растительность горы Стрижамент имеет большое природоохранное и научное значение. Несмотря
+        на преобладание степных ландшафтов в окружающих районах Предкавказья, вершина горы покрыта
+        лесными массивами, что связано с более влажными и прохладными климатическими условиями. Здесь
+        распространены дубово-грабовые и буково-грабовые леса, местами встречается ясень, клён и липа.
+        Флора территории насчитывает несколько сотен видов сосудистых растений, среди которых имеются
+        редкие и охраняемые виды, занесённые в региональные природоохранные списки.
+      </p>
+
+      <h3 class="font-display text-xl mt-10 mb-3">Животный мир</h3>
+      <p>
+        Животный мир территории также отличается высоким уровнем разнообразия. Лесные и лесостепные
+        биотопы создают условия для обитания многочисленных видов птиц, млекопитающих, земноводных
+        и насекомых. Здесь встречаются косуля, лисица, заяц-русак, барсук, а также различные виды
+        хищных и певчих птиц. Благоприятные природные условия и слабая хозяйственная освоенность
+        отдельных участков способствуют сохранению естественных экосистем и поддержанию биологического
+        разнообразия региона.
+      </p>
+
+      <h3 class="font-display text-xl mt-10 mb-3">Природоохранный статус</h3>
+      <p>
+        Территория горы Стрижамент и прилегающих природных комплексов входит в состав государственного
+        природного заказника краевого значения «Стрижамент». На территории заказника действует
+        специальный природоохранный режим, предусматривающий ограничение хозяйственной деятельности,
+        способной нанести ущерб природным комплексам. Создание заказника позволило сохранить
+        значительную часть естественных ландшафтов горы в относительно ненарушенном состоянии.
+        Границы ООПТ используются в качестве официального пространственного контура настоящего
+        исследования, поскольку они закреплены нормативно-правовой документацией и в значительной
+        степени совпадают с естественными геоморфологическими границами горного массива.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── ДАННЫЕ И МЕТОДИКА ─── -->
+<section id="data" class="bg-parchment/60 border-y border-contour/60">
+  <div class="max-w-6xl mx-auto px-6 py-20 md:py-24">
+    <div class="rule mb-6"></div>
+    <h2 class="font-display text-3xl md:text-4xl">Источники данных и подготовка ЦМР</h2>
+
+    <div class="grid lg:grid-cols-12 gap-12 mt-12">
+      <div class="lg:col-span-7 prose-r text-ink/75 text-[15.5px]">
+        <h3 class="font-display text-xl mb-3">Цифровая модель рельефа</h3>
+        <p>
+          Основным источником пространственных данных для проведения геоинформационного анализа
+          рельефа горы Стрижамент послужила цифровая модель рельефа SRTM (Shuttle Radar Topography
+          Mission) с пространственным разрешением 30 м. Данные были получены в свободном доступе через
+          портал USGS EarthExplorer — специализированную платформу Геологической службы США,
+          предоставляющую бесплатный доступ к обширному архиву данных дистанционного зондирования Земли.
+          Для покрытия всей территории исследования потребовался один тайл ЦМР, охватывающий
+          соответствующий градусный квадрат в зоне расположения Ставропольского края.
+        </p>
+
+        <h3 class="font-display text-xl mt-9 mb-3">Обоснование выбора данных</h3>
+        <p>
+          Выбор данных SRTM в качестве основного источника информации о рельефе обусловлен рядом
+          факторов. Во-первых, данная модель является одной из наиболее точных и детальных из числа
+          свободно распространяемых глобальных ЦМР. Вертикальная погрешность SRTM для большей части
+          территорий составляет не более 10–16 м, что вполне приемлемо для морфометрического анализа
+          горного массива с перепадом высот порядка 380 м. Во-вторых, разрешение 30 м позволяет
+          детально отразить основные морфологические элементы рельефа Стрижамента — вершинное плато,
+          уступы и систему склоновых балок. В-третьих, формат данных (GeoTIFF) является стандартным
+          растровым форматом, поддерживаемым всеми современными геоинформационными системами, что
+          обеспечивает простоту работы с данными в среде QGIS.
+        </p>
+
+        <h3 class="font-display text-xl mt-9 mb-3">Подготовка данных и проекция</h3>
+        <p>
+          Перед началом аналитических операций исходная ЦМР была подготовлена к использованию.
+          На первом этапе выполнена проверка корректности загруженных данных: верификация
+          пространственного охвата, отсутствия пропусков и артефактов в данных. На втором этапе все
+          рабочие слои — растровая ЦМР и векторные данные — приведены к единой картографической
+          проекции WGS 84 / UTM zone 38N (EPSG:32638). Данная проекция относится к классу равноугольных
+          цилиндрических проекций и обеспечивает минимальные искажения длин и площадей для территории
+          Ставропольского края, что особенно важно при вычислении морфометрических характеристик рельефа.
+        </p>
+
+        <h3 class="font-display text-xl mt-9 mb-3">Границы района исследования</h3>
+        <p>
+          Границы района исследования определены в соответствии с официально утверждёнными границами
+          государственного природного заказника краевого значения «Стрижамент». Векторный слой границы
+          ООПТ был получен с портала «ООПТ России» — государственной информационно-аналитической
+          системы, аккумулирующей сведения обо всех особо охраняемых природных территориях Российской
+          Федерации. Данные представлены в формате шейп-файла и использованы для обрезки исходной ЦМР
+          по области исследования с помощью инструмента «Обрезать растр по маске» в среде QGIS. Такой
+          подход позволяет исключить из анализа данные за пределами исследуемой территории и
+          сосредоточиться на морфометрических характеристиках непосредственно горного массива.
+        </p>
+
+        <h3 class="font-display text-xl mt-9 mb-3">Дополнительные слои</h3>
+        <p>
+          Для получения дополнительного пространственного контекста — дорог, рек, населённых пунктов —
+          использовались данные OpenStreetMap, подключённые непосредственно в среде QGIS через плагин
+          QuickMapServices. OpenStreetMap представляет собой открытый картографический проект с высокой
+          степенью детальности для большинства населённых территорий, что делает его удобным источником
+          топографической информации для составления обзорных и физических карт. Данные OSM послужили
+          основой для отображения инфраструктурных элементов на физической карте района исследования.
+        </p>
+      </div>
+
+      <div class="lg:col-span-5 space-y-8">
+        <div class="map-frame bg-paper p-6">
+          <div class="text-xs uppercase tracking-[0.2em] text-ridge mb-4">Ключевые параметры</div>
+          <dl class="text-sm divide-y divide-contour/60">
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">ЦМР</dt><dd>SRTM, разрешение 30 м</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">Вертикальная погрешность</dt><dd>не более 10–16 м</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">Перепад высот</dt><dd>порядка 380 м</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">Формат данных</dt><dd>GeoTIFF</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">Проекция</dt><dd class="num">WGS 84 / UTM zone 38N<br>(EPSG:32638)</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">Контур исследования</dt><dd>граница заказника «Стрижамент» (ООПТ России)</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">Топографический контекст</dt><dd>OpenStreetMap (QuickMapServices)</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">ГИС</dt><dd>QGIS 3.38 «Grenoble»</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">Отмывка рельефа</dt><dd>азимут солнца 315°, угол возвышения 45°</dd></div>
+            <div class="flex gap-4 py-2.5"><dt class="w-40 text-ink/55">Горизонтали</dt><dd>шаг 50 м</dd></div>
+          </dl>
+        </div>
+
+        <div class="map-frame bg-paper p-6">
+          <div class="text-xs uppercase tracking-[0.2em] text-ridge mb-5">Этапы обработки</div>
+          <ol class="space-y-4 text-sm text-ink/75">
+            <li class="flex gap-3"><span class="step-num num">01</span><span>Загрузка и проверка исходной ЦМР</span></li>
+            <li class="flex gap-3"><span class="step-num num">02</span><span>Приведение всех слоёв к единой системе координат</span></li>
+            <li class="flex gap-3"><span class="step-num num">03</span><span>Обрезка растра по границе ООПТ</span></li>
+            <li class="flex gap-3"><span class="step-num num">04</span><span>Построение производных морфометрических слоёв (модуль «Растровый анализ»)</span></li>
+            <li class="flex gap-3"><span class="step-num num">05</span><span>Реклассификация растра экспозиций на восемь направленных классов</span></li>
+            <li class="flex gap-3"><span class="step-num num">06</span><span>Настройка символики и стилизация тематических слоёв</span></li>
+            <li class="flex gap-3"><span class="step-num num">07</span><span>Картографическое оформление в компоновщике карт QGIS и финальная подготовка легенды и подписей</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── КАРТЫ СЕРИИ ─── -->
+<section id="maps" class="max-w-6xl mx-auto px-6 py-20 md:py-24">
+  <div class="rule mb-6"></div>
+  <h2 class="font-display text-3xl md:text-4xl">Серия тематических карт</h2>
+  <p class="text-ink/65 mt-4 max-w-3xl leading-relaxed">
+    Картографическое оформление серии тематических карт выполнено в соответствии с основными
+    требованиями тематической картографии. Каждая карта снабжена заголовком, легендой с описанием всех
+    использованных условных обозначений, масштабной линейкой, стрелкой севера и указанием источника
+    данных. Единый стиль оформления всех четырёх карт серии обеспечивает их визуальную согласованность
+    и удобство восприятия при сравнительном анализе.
+  </p>
+
+  <div class="grid md:grid-cols-2 gap-8 mt-12">
+    <article class="group map-frame bg-paper">
+      <div class="p-6 md:p-7">
+        <div class="flex items-start justify-between gap-4">
+          <span class="text-xs uppercase tracking-[0.2em] text-ridge">Лист 01</span>
+          <span class="text-xs text-ink/45 num">2026</span>
+        </div>
+        <h3 class="font-display text-2xl mt-3">Физическая карта</h3>
+        <p class="text-sm text-ink/65 mt-3 leading-relaxed">
+          Гидрографическая сеть (реки, ручьи и временные водотоки в балках), основные автомобильные
+          дороги, ближайшие населённые пункты и граница заказника «Стрижамент». Карта выполняет функцию
+          обзорной и служит для ориентировки в пространственном расположении исследуемого объекта.
+        </p>
+        <p class="text-xs text-ink/55 mt-3 leading-relaxed">
+          Основа — отмывка рельефа по ЦМР SRTM (инструмент «Теневой рельеф», азимут солнца 315°,
+          угол возвышения 45°). Элементы содержания получены из OpenStreetMap и прошли визуальную
+          верификацию на соответствие топографической ситуации.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-ink/55" data-mini="0"></div>
+      </div>
+      <button type="button" data-open="0" class="block w-full border-t border-contour/60 text-left">
+        <div class="grid place-items-center bg-parchment overflow-hidden" data-art="0" style="aspect-ratio:4/3"></div>
+      </button>
+    </article>
+
+    <article class="group map-frame bg-paper">
+      <div class="p-6 md:p-7">
+        <div class="flex items-start justify-between gap-4">
+          <span class="text-xs uppercase tracking-[0.2em] text-ridge">Лист 02</span>
+          <span class="text-xs text-ink/45 num">2026</span>
+        </div>
+        <h3 class="font-display text-2xl mt-3">Гипсометрическая карта</h3>
+        <p class="text-sm text-ink/65 mt-3 leading-relaxed">
+          Отображает распределение абсолютных высот по территории исследования и является одной из
+          ключевых в составе серии. Построена путём применения градуированной цветовой шкалы к растру ЦМР:
+          для нижних отметок использованы зелёные тона, переходящие через жёлтые и оранжевые к коричневым
+          и красноватым на вершинном плато.
+        </p>
+        <p class="text-xs text-ink/55 mt-3 leading-relaxed">
+          Поверх цветовой гипсометрии наложена полупрозрачная отмывка рельефа, что придаёт карте объёмный
+          вид. Дополнительно нанесены горизонтали с шагом 50 м и подписями высотных отметок на основных
+          изолиниях.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-ink/55" data-mini="1"></div>
+      </div>
+      <button type="button" data-open="1" class="block w-full border-t border-contour/60 text-left">
+        <div class="grid place-items-center bg-parchment overflow-hidden" data-art="1" style="aspect-ratio:4/3"></div>
+      </button>
+    </article>
+
+    <article class="group map-frame bg-paper">
+      <div class="p-6 md:p-7">
+        <div class="flex items-start justify-between gap-4">
+          <span class="text-xs uppercase tracking-[0.2em] text-ridge">Лист 03</span>
+          <span class="text-xs text-ink/45 num">2026</span>
+        </div>
+        <h3 class="font-display text-2xl mt-3">Карта уклонов (крутизны склонов)</h3>
+        <p class="text-sm text-ink/65 mt-3 leading-relaxed">
+          Показывает распределение крутизны склонов по территории заказника. Растр уклонов получен
+          из ЦМР инструментами модуля «Растровый анализ» и разделён на классы: от горизонтальных
+          поверхностей до очень крутых участков.
+        </p>
+        <p class="text-xs text-ink/55 mt-3 leading-relaxed">
+          Классы крутизны: 0–3° (горизонтальные поверхности), 3–7° (слабонаклонные), 7–15°
+          (средненаклонные), 15–25° (крутые), более 25° (очень крутые).
+        </p>
+        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-ink/55" data-mini="2"></div>
+      </div>
+      <button type="button" data-open="2" class="block w-full border-t border-contour/60 text-left">
+        <div class="grid place-items-center bg-parchment overflow-hidden" data-art="2" style="aspect-ratio:4/3"></div>
+      </button>
+    </article>
+
+    <article class="group map-frame bg-paper">
+      <div class="p-6 md:p-7">
+        <div class="flex items-start justify-between gap-4">
+          <span class="text-xs uppercase tracking-[0.2em] text-ridge">Лист 04</span>
+          <span class="text-xs text-ink/45 num">2026</span>
+        </div>
+        <h3 class="font-display text-2xl mt-3">Карта экспозиций склонов</h3>
+        <p class="text-sm text-ink/65 mt-3 leading-relaxed">
+          Характеризует ориентацию склонов по сторонам света. Растр экспозиций реклассифицирован
+          на восемь направленных классов; участки с нулевым уклоном выделены как плоские поверхности
+          без экспозиции.
+        </p>
+        <p class="text-xs text-ink/55 mt-3 leading-relaxed">
+          Румбы: С, СВ, В, ЮВ, Ю, ЮЗ, З, СЗ — а также плоские участки. Дискретная цветовая шкала
+          обеспечивает однозначное чтение направлений при сравнительном анализе с картой уклонов.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-ink/55" data-mini="3"></div>
+      </div>
+      <button type="button" data-open="3" class="block w-full border-t border-contour/60 text-left">
+        <div class="grid place-items-center bg-parchment overflow-hidden" data-art="3" style="aspect-ratio:4/3"></div>
+      </button>
+    </article>
+  </div>
+
+  <!-- анализ -->
+  <div class="mt-16 grid md:grid-cols-12 gap-10 md:gap-14">
+    <div class="md:col-span-4">
+      <div class="rule mb-6"></div>
+      <h2 class="font-display text-2xl md:text-3xl">Что показал анализ</h2>
+    </div>
+    <div class="md:col-span-8 prose-r text-ink/75 text-[15.5px]">
+      <p>
+        Анализ физической карты позволяет охарактеризовать общие черты географического положения
+        и морфологии горы. Стрижамент чётко выделяется на фоне окружающих равнин как изолированный
+        возвышенный массив с хорошо выраженными склонами. Контраст между вершинным плато и прилегающими
+        территориями хорошо прослеживается на отмывке рельефа: плато выглядит значительно более светлым
+        ввиду преобладания горизонтальных поверхностей с минимальной интенсивностью теней.
+      </p>
+      <p>
+        Граница заказника охватывает вершинное плато и верхние части склонов, фиксируя наиболее ценную
+        в природном отношении часть горного массива. Гидрографическая сеть представлена системой балок
+        и малых водотоков, берущих начало на склонах горы и радиально расходящихся от вершинного плато
+        во все стороны, что типично для изолированных возвышенностей с куполообразным или
+        плосковершинным рельефом.
+      </p>
+      <p>
+        Транспортная доступность территории заказника ограничена: к горе ведут преимущественно грунтовые
+        дороги и просёлки, что в целом соответствует природоохранному статусу ООПТ и способствует
+        сохранению относительно ненарушенных природных комплексов. Ближайшие населённые пункты
+        расположены у подножия горы на расстоянии нескольких километров от её склонов.
+      </p>
+      <p>
+        Физическая карта наглядно демонстрирует изолированность горного массива среди окружающих равнин
+        Ставропольской возвышенности и подчёркивает его роль как уникального природного объекта
+        регионального значения.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── ИНТЕРАКТИВНЫЙ АТЛАС ─── -->
+<section id="atlas" class="bg-parchment/60 border-y border-contour/60">
+  <div class="max-w-6xl mx-auto px-6 py-20 md:py-24">
+    <div class="flex flex-wrap items-end justify-between gap-6 mb-8">
+      <div>
+        <div class="rule mb-6"></div>
+        <h2 class="font-display text-3xl md:text-4xl">Интерактивный атлас</h2>
+        <p class="text-ink/65 mt-3 max-w-2xl">
+          Четыре листа серии как единый атлас: панорамирование, масштабирование, переключение листов
+          и режим сравнения двух карт — для сравнительного анализа морфометрических характеристик.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <span id="loadStatus" class="text-xs text-ink/55 num">Подставлено 0 из 4 листов</span>
+        <button id="loadBtn" class="inline-flex items-center gap-2 bg-ink text-paper px-5 py-2.5 rounded-sm hover:bg-clay transition text-sm">
+          Загрузить листы
+        </button>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2 mb-4" id="tabs"></div>
+
+    <div class="grid lg:grid-cols-3 gap-6 items-start">
+      <div id="viewerWrap" class="map-frame bg-paper lg:col-span-2">
+        <div class="stage" id="stage" tabindex="0" aria-label="Просмотр карт: перетаскивание — панорама, колесо — масштаб">
+          <div class="pane" id="paneA">
+            <img id="imgA" alt="Карта: выбранный лист">
+            <div class="pane-ph" id="phA"></div>
+            <div class="pane-tag" id="tagA">Физическая</div>
+          </div>
+          <div class="pane hidden" id="paneB">
+            <img id="imgB" alt="Карта: второй лист для сравнения">
+            <div class="pane-ph" id="phB"></div>
+            <div class="pane-tag" id="tagB">Гипсометрическая</div>
+          </div>
+        </div>
+
+        <div class="border-t border-contour/60 px-4 py-3 flex flex-wrap items-center gap-2 md:gap-3">
+          <button data-zoom="out" class="w-9 h-9 grid place-items-center border border-ink/20 hover:border-ink rounded-sm text-lg leading-none transition" title="Уменьшить">−</button>
+          <span id="zoomLabel" class="num text-xs text-ink/60 w-12 text-center">100%</span>
+          <button data-zoom="in" class="w-9 h-9 grid place-items-center border border-ink/20 hover:border-ink rounded-sm text-lg leading-none transition" title="Увеличить">+</button>
+          <button id="resetBtn" class="px-3 h-9 border border-ink/20 hover:border-ink rounded-sm text-xs transition">Сброс</button>
+          <button id="fsBtn" class="px-3 h-9 border border-ink/20 hover:border-ink rounded-sm text-xs transition">Полный экран</button>
+          <label class="ml-auto inline-flex items-center gap-2 text-xs text-ink/65 cursor-pointer">
+            <input type="checkbox" id="cmpToggle" class="accent-clay"> Сравнить два листа
+          </label>
+        </div>
+
+        <div id="cmpBar" class="hidden border-t border-contour/60 px-4 py-3 flex flex-wrap items-center gap-3 text-xs text-ink/65">
+          <span>Сравнить с листом:</span>
+          <select id="selB" class="border border-ink/20 rounded-sm px-2 py-1 bg-paper text-ink"></select>
+          <span class="text-ink/45">панорама и масштаб синхронны для обеих карт</span>
+        </div>
+
+        <div class="border-t border-contour/60 px-4 py-3 text-[11px] text-ink/50">
+          Управление: перетаскивание — панорама · колесо или двойной клик — масштаб · стрелки и +/− с клавиатуры · «Сброс» — вернуть лист целиком.
+        </div>
+      </div>
+
+      <aside class="map-frame bg-paper p-6">
+        <div class="text-xs uppercase tracking-[0.2em] text-ridge mb-4">Условные обозначения</div>
+        <h3 class="font-display text-xl mb-3" id="legendTitle">Физическая карта</h3>
+        <div id="legendBody" class="space-y-2.5"></div>
+        <p class="text-[11px] text-ink/45 mt-6 pt-4 border-t border-contour/60">
+          Веб-легенда приведена по оригинальным листам серии; цвета и знаки — приближённые.
+        </p>
+      </aside>
+    </div>
+
+    <div class="mt-8 hairline pt-5 text-sm text-ink/60 max-w-3xl">
+      Если листы не отображаются: нажмите «Загрузить листы» и выберите четыре файла — они сразу
+      разложатся по карточкам и в атлас. Или положите их рядом с HTML-файлом в папку
+      <span class="text-ink/80">images/</span> с именами
+      <span class="num text-ink/80">fizicheskaya.jpg</span>,
+      <span class="num text-ink/80">gipsometricheskaya.jpg</span>,
+      <span class="num text-ink/80">uklony.jpg</span>,
+      <span class="num text-ink/80">ekspozicii.jpg</span>.
+    </div>
+  </div>
+</section>
+
+<!-- ─── ИСТОЧНИКИ ─── -->
+<section id="sources" class="max-w-6xl mx-auto px-6 py-20 md:py-24">
+  <div class="rule mb-6"></div>
+  <h2 class="font-display text-3xl md:text-4xl mb-12">Источники данных</h2>
+  <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+    <div class="hairline pt-5">
+      <div class="font-display text-lg">SRTM</div>
+      <p class="text-sm text-ink/65 mt-2 leading-relaxed">
+        Shuttle Radar Topography Mission, разрешение 30 м. Получено через портал USGS EarthExplorer.
+        Формат GeoTIFF.
+      </p>
+    </div>
+    <div class="hairline pt-5">
+      <div class="font-display text-lg">ООПТ России</div>
+      <p class="text-sm text-ink/65 mt-2 leading-relaxed">
+        Векторный слой границы заказника «Стрижамент» (шейп-файл) — официальный пространственный
+        контур исследования.
+      </p>
+    </div>
+    <div class="hairline pt-5">
+      <div class="font-display text-lg">OpenStreetMap</div>
+      <p class="text-sm text-ink/65 mt-2 leading-relaxed">
+        Дороги, реки и населённые пункты; подключено в QGIS через плагин QuickMapServices.
+        Основа физической карты.
+      </p>
+    </div>
+    <div class="hairline pt-5">
+      <div class="font-display text-lg">QGIS 3.38 «Grenoble»</div>
+      <p class="text-sm text-ink/65 mt-2 leading-relaxed">
+        Среда обработки данных: модуль «Растровый анализ», компоновщик карт, стилизация слоёв
+        и оформление серии.
+      </p>
+    </div>
+  </div>
+
+  <div class="mt-14 hairline pt-6 text-sm text-ink/60 max-w-3xl">
+    Все пространственные данные приведены к единой проекции WGS 84 / UTM zone 38N (EPSG:32638);
+    анализ выполнен в пределах официальной границы государственного природного заказника
+    краевого значения «Стрижамент».
+  </div>
+</section>
+
+<footer class="border-t border-contour/70">
+  <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink/50">
+    <span>Геоинформационный анализ рельефа горы Стрижамент · 2026</span>
+    <span class="num">По данным SRTM (USGS), OpenStreetMap, ООПТ России · QGIS 3.38 «Grenoble»</span>
+  </div>
+</footer>
+
+<input type="file" id="fileInput" accept="image/*" multiple class="hidden">
+<div class="drop-overlay" id="dropOverlay">
+  <div class="text-center text-paper">
+    <div class="font-display text-3xl mb-2">Отпустите файлы</div>
+    <div class="text-sm text-paper/70">Листы разложатся по карточкам и в атлас автоматически</div>
+  </div>
+</div>
+
+<script>
+/* ══════════ ДАННЫЕ ЛИСТОВ ══════════ */
+const SHEETS = [
+  {
+    key:'physical', tab:'Физическая', title:'Физическая карта',
+    file:'images/fizicheskaya.jpg',
+    legend:[
+      {t:'line', c:'#c0453a', w:3, label:'Граница заказника «Стрижамент»'},
+      {t:'line', c:'#8fb3d9', w:2, label:'Реки и водотоки'},
+      {t:'fill', c:'#c3d6e8', label:'Водоёмы'},
+      {t:'line', c:'#c0a068', w:2, label:'Автомобильные дороги'},
+      {t:'line', c:'#cfc7b6', w:1, label:'Горизонтали'},
+      {t:'tri',  c:'#2b2b26', label:'г. Стрижамент (831 м)'},
+      {t:'dot',  c:'#6b6b6b', label:'Населённые пункты'}
+    ]
+  },
+  {
+    key:'hypso', tab:'Гипсометрическая', title:'Гипсометрическая карта',
+    file:'images/gipsometricheskaya.jpg',
+    legend:[
+      {t:'line', c:'#c0453a', w:3, label:'Граница заказника «Стрижамент»'},
+      {t:'line', c:'#cfc7b6', w:1, label:'Горизонтали (шаг 50 м)'},
+      {t:'scale', label:'Шкала высот (м)', items:[
+        {c:'#cfe3b4', label:'300 – 400'},
+        {c:'#a9cd8b', label:'400 – 500'},
+        {c:'#e0cf9a', label:'500 – 600'},
+        {c:'#c9a86a', label:'600 – 700'},
+        {c:'#a97d43', label:'700 – 800'},
+        {c:'#7a5228', label:'800 – 831'}
+      ]}
+    ]
+  },
+  {
+    key:'slope', tab:'Уклоны', title:'Карта уклонов',
+    file:'images/uklony.jpg',
+    legend:[
+      {t:'scale', label:'Крутизна склонов', items:[
+        {c:'#fdf3c4', label:'0 – 3° (горизонтальные поверхности)'},
+        {c:'#f2c86a', label:'3 – 7° (слабонаклонные)'},
+        {c:'#e0823b', label:'7 – 15° (средненаклонные)'},
+        {c:'#cf2f26', label:'15 – 25° (крутые)'},
+        {c:'#7d1a14', label:'> 25° (очень крутые)'}
+      ]}
+    ]
+  },
+  {
+    key:'aspect', tab:'Экспозиции', title:'Карта экспозиций',
+    file:'images/ekspozicii.jpg',
+    legend:[
+      {t:'scale', label:'Экспозиция склонов', items:[
+        {c:'#d9382b', label:'С — Северная (337.5° – 22.5°)'},
+        {c:'#ef8a2b', label:'СВ — Северо-восточная (22.5° – 67.5°)'},
+        {c:'#f2d13c', label:'В — Восточная (67.5° – 112.5°)'},
+        {c:'#5aa84a', label:'ЮВ — Юго-восточная (112.5° – 157.5°)'},
+        {c:'#46c6d6', label:'Ю — Южная (157.5° – 202.5°)'},
+        {c:'#2b6fd0', label:'ЮЗ — Юго-западная (202.5° – 247.5°)'},
+        {c:'#1b3a8c', label:'З — Западная (247.5° – 292.5°)'},
+        {c:'#a13fa0', label:'СЗ — Северо-западная (292.5° – 337.5°)'},
+        {c:'#9a9a9a', label:'Плоские участки (без экспозиции)'}
+      ]}
+    ]
+  }
+];
+SHEETS.forEach(s => { s.src = s.file; s.loaded = false; s.user = false; });
+
+/* ══════════ СОСТОЯНИЕ ПРОСМОТРЩИКА ══════════ */
+const st = { scale:1, tx:0, ty:0, a:0, b:1, compare:false };
+const MIN_SCALE = 0.6, MAX_SCALE = 10;
+
+const stage  = document.getElementById('stage');
+const imgA   = document.getElementById('imgA');
+const imgB   = document.getElementById('imgB');
+const paneB  = document.getElementById('paneB');
+const phA    = document.getElementById('phA');
+const phB    = document.getElementById('phB');
+const tagA   = document.getElementById('tagA');
+const tagB   = document.getElementById('tagB');
+const zoomLabel = document.getElementById('zoomLabel');
+
+/* ══════════ ЛЕГЕНДА ══════════ */
+function legendHTML(sheet){
+  return sheet.legend.map(it => {
+    if (it.t === 'scale'){
+      const rows = it.items.map(x =>
+        `<div class="lg-row"><span class="lg-fill" style="background:${x.c}"></span><span>${x.label}</span></div>`
+      ).join('');
+      return `<div class="pt-1"><div class="text-[11px] uppercase tracking-[0.15em] text-ink/45 mb-2">${it.label}</div>${rows}</div>`;
+    }
+    if (it.t === 'line'){
+      return `<div class="lg-row"><span class="lg-line" style="background:${it.c};height:${it.w>2?4:it.w}px"></span><span>${it.label}</span></div>`;
+    }
+    if (it.t === 'fill'){
+      return `<div class="lg-row"><span class="lg-fill" style="background:${it.c}"></span><span>${it.label}</span></div>`;
+    }
+    if (it.t === 'tri') return `<div class="lg-row"><span class="lg-tri"></span><span>${it.label}</span></div>`;
+    return `<div class="lg-row"><span class="lg-dot" style="background:${it.c}"></span><span>${it.label}</span></div>`;
+  }).join('');
+}
+
+function miniHTML(sheet){
+  const chips = [];
+  sheet.legend.forEach(it => {
+    if (it.t === 'scale') it.items.slice(0,5).forEach(x => chips.push(`<span class="inline-flex items-center gap-1.5"><span class="lg-fill" style="width:12px;height:8px;background:${x.c}"></span>${x.label.split(' (')[0]}</span>`));
+    else if (it.t === 'fill') chips.push(`<span class="inline-flex items-center gap-1.5"><span class="lg-fill" style="width:12px;height:8px;background:${it.c}"></span>${it.label}</span>`);
+    else if (it.t === 'line') chips.push(`<span class="inline-flex items-center gap-1.5"><span class="lg-line" style="width:12px;height:2px;margin:0;background:${it.c}"></span>${it.label}</span>`);
+  });
+  return chips.slice(0,4).join('') + (chips.length>4 ? '<span class="text-ink/40">и ещё '+(chips.length-4)+'</span>' : '');
+}
+
+/* ══════════ РЕНДЕР ══════════ */
+const tabsBox = document.getElementById('tabs');
+
+function renderTabs(){
+  tabsBox.innerHTML = SHEETS.map((s,i) => {
+    const on = i === st.a;
+    return `<button data-tab="${i}" class="inline-flex items-center gap-2 px-4 py-2 rounded-sm border text-sm transition
+      ${on ? 'bg-ink text-paper border-ink' : 'border-ink/20 text-ink/70 hover:border-ink/60'}">
+      <span class="w-1.5 h-1.5 rounded-full" style="background:${s.loaded ? '#8ba888' : (on ? 'rgba(245,241,232,.5)' : 'rgba(43,43,38,.25)')}"></span>
+      ${s.tab}</button>`;
+  }).join('');
+}
+
+function phHTML(sheet){
+  return `<div>
+    <div class="font-display text-4xl text-ridge/40">▲</div>
+    <div class="font-display text-lg mt-3">${sheet.title}</div>
+    <div class="text-xs text-ink/55 mt-2 max-w-xs mx-auto">Лист ещё не подставлен. Выберите файл с изображением карты — он появится здесь, в карточке и в атласе.</div>
+    <button data-pick="${sheet.key}" class="mt-4 inline-flex items-center gap-2 bg-ink text-paper px-4 py-2 rounded-sm hover:bg-clay transition text-xs">Выбрать файл</button>
+  </div>`;
+}
+
+function renderPanes(){
+  const a = SHEETS[st.a], b = SHEETS[st.b];
+
+  if (a.loaded){ imgA.src = a.src; imgA.style.display = 'block'; }
+  else { imgA.removeAttribute('src'); imgA.style.display = 'none'; }
+
+  if (st.compare && b.loaded){ imgB.src = b.src; imgB.style.display = 'block'; }
+  else { imgB.removeAttribute('src'); imgB.style.display = 'none'; }
+
+  paneB.classList.toggle('hidden', !st.compare);
+  stage.classList.toggle('compare', st.compare);
+
+  tagA.textContent = a.tab;
+  tagB.textContent = b.tab;
+
+  phA.style.display = a.loaded ? 'none' : 'grid';
+  phA.innerHTML = a.loaded ? '' : phHTML(a);
+  phB.style.display = (st.compare && !b.loaded) ? 'grid' : 'none';
+  phB.innerHTML = (st.compare && !b.loaded) ? phHTML(b) : '';
+
+  document.getElementById('legendTitle').textContent = a.title;
+  document.getElementById('legendBody').innerHTML = legendHTML(a);
+
+  document.getElementById('loadStatus').textContent =
+    'Подставлено ' + SHEETS.filter(s => s.loaded).length + ' из 4 листов';
+
+  renderTabs();
+  apply();
+}
+
+function renderCards(){
+  SHEETS.forEach((s,i) => {
+    const box = document.querySelector(`[data-art="${i}"]`);
+    const mini = document.querySelector(`[data-mini="${i}"]`);
+    if (mini) mini.innerHTML = miniHTML(s);
+    if (!box) return;
+    if (s.loaded){
+      box.innerHTML = `<img src="${s.src}" alt="${s.title}" class="w-full h-full object-cover transition duration-700 group-hover:scale-[1.03]">`;
+    } else {
+      box.innerHTML = `<div class="text-center px-6">
+        <div class="font-display text-5xl text-ridge/40">▲</div>
+        <div class="text-xs text-ink/55 mt-3">${s.title}</div>
+        <div class="text-[11px] text-ink/40 mt-1">Нажмите — откроется в атласе</div>
+      </div>`;
+    }
+  });
+}
+
+/* ══════════ МАСШТАБ И ПАНОРАМА ══════════ */
+function apply(){
+  const t = `translate3d(${st.tx}px, ${st.ty}px, 0) scale(${st.scale})`;
+  imgA.style.transform = t;
+  imgB.style.transform = t;
+  zoomLabel.textContent = Math.round(st.scale * 100) + '%';
+}
+function reset(){ st.scale = 1; st.tx = 0; st.ty = 0; apply(); }
+
+function zoomAt(factor, cx, cy){
+  const s2 = Math.min(MAX_SCALE, Math.max(MIN_SCALE, st.scale * factor));
+  const k = s2 / st.scale;
+  if (k === 1) return;
+  const r = stage.getBoundingClientRect();
+  if (st.compare){ st.tx *= k; st.ty *= k; }
+  else {
+    const ox = cx - r.left - r.width / 2;
+    const oy = cy - r.top - r.height / 2;
+    st.tx = ox - (ox - st.tx) * k;
+    st.ty = oy - (oy - st.ty) * k;
+  }
+  st.scale = s2;
+  apply();
+}
+
+const pointers = new Map();
+let dragStart = null, pinchDist = 0;
+
+stage.addEventListener('pointerdown', e => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { stage.setPointerCapture(e.pointerId); } catch(_) {}
+  stage.classList.add('dragging');
+  if (pointers.size === 1){
+    dragStart = { x: e.clientX - st.tx, y: e.clientY - st.ty };
+  } else if (pointers.size === 2){
+    dragStart = null;
+    const p = [...pointers.values()];
+    pinchDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+  }
+});
+
+stage.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (pointers.size === 1 && dragStart){
+    st.tx = e.clientX - dragStart.x;
+    st.ty = e.clientY - dragStart.y;
+    apply();
+  } else if (pointers.size === 2){
+    const p = [...pointers.values()];
+    const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    if (pinchDist > 0){
+      const mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+      zoomAt(d / pinchDist, mid.x, mid.y);
+    }
+    pinchDist = d;
+  }
+});
+
+function endPointer(e){
+  pointers.delete(e.pointerId);
+  if (pointers.size === 0){ stage.classList.remove('dragging'); dragStart = null; pinchDist = 0; }
+  else if (pointers.size === 1){
+    const p = [...pointers.values()][0];
+    dragStart = { x: p.x - st.tx, y: p.y - st.ty };
+    pinchDist = 0;
+  }
+}
+stage.addEventListener('pointerup', endPointer);
+stage.addEventListener('pointercancel', endPointer);
+
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
+}, { passive:false });
+
+stage.addEventListener('dblclick', e => {
+  e.preventDefault();
+  zoomAt(e.shiftKey ? 1/1.6 : 1.6, e.clientX, e.clientY);
+});
+
+stage.addEventListener('keydown', e => {
+  const step = 60;
+  if (e.key === 'ArrowLeft')  st.tx -= step;
+  else if (e.key === 'ArrowRight') st.tx += step;
+  else if (e.key === 'ArrowUp')    st.ty -= step;
+  else if (e.key === 'ArrowDown')  st.ty += step;
+  else if (e.key === '+' || e.key === '=') zoomAt(1.25);
+  else if (e.key === '-' || e.key === '_') zoomAt(1/1.25);
+  else if (e.key === '0') reset();
+  else return;
+  e.preventDefault(); apply();
+});
+
+document.querySelectorAll('[data-zoom]').forEach(b => {
+  b.addEventListener('click', () => zoomAt(b.dataset.zoom === 'in' ? 1.35 : 1/1.35));
+});
+document.getElementById('resetBtn').addEventListener('click', reset);
+
+document.getElementById('fsBtn').addEventListener('click', () => {
+  const wrap = document.getElementById('viewerWrap');
+  try {
+    if (!document.fullscreenElement) wrap.requestFullscreen();
+    else document.exitFullscreen();
+  } catch(_) {}
+});
+
+/* ══════════ РЕЖИМ СРАВНЕНИЯ ══════════ */
+const cmpToggle = document.getElementById('cmpToggle');
+const cmpBar = document.getElementById('cmpBar');
+const selB = document.getElementById('selB');
+selB.innerHTML = SHEETS.map((s,i) => `<option value="${i}">${s.tab}</option>`).join('');
+selB.value = String(st.b);
+
+cmpToggle.addEventListener('change', () => {
+  st.compare = cmpToggle.checked;
+  cmpBar.classList.toggle('hidden', !st.compare);
+  if (st.compare && st.b === st.a) st.b = (st.a + 1) % SHEETS.length;
+  selB.value = String(st.b);
+  reset();
+  renderPanes();
+});
+selB.addEventListener('change', () => { st.b = Number(selB.value); reset(); renderPanes(); });
+
+/* ══════════ ВЫБОР ЛИСТА / ПЕРЕХОД ИЗ КАРТОЧКИ ══════════ */
+tabsBox.addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  st.a = Number(b.dataset.tab);
+  reset();
+  renderPanes();
+});
+
+function openAtlas(i){
+  st.a = i; st.compare = false; cmpToggle.checked = false; cmpBar.classList.add('hidden');
+  reset(); renderPanes();
+  document.getElementById('atlas').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+document.addEventListener('click', e => {
+  const open = e.target.closest('[data-open]');
+  if (open){ openAtlas(Number(open.dataset.open)); return; }
+  const pick = e.target.closest('[data-pick]');
+  if (pick){
+    fileInput.dataset.key = pick.dataset.pick;
+    fileInput.click();
+  }
+});
+
+/* ══════════ ЗАГРУЗКА ФАЙЛОВ ══════════ */
+const fileInput = document.getElementById('fileInput');
+const loadBtn = document.getElementById('loadBtn');
+const loadTop = document.getElementById('loadTop');
+
+loadBtn.addEventListener('click', () => { delete fileInput.dataset.key; fileInput.click(); });
+loadTop.addEventListener('click', () => { delete fileInput.dataset.key; fileInput.click(); });
+
+fileInput.addEventListener('change', () => {
+  assignFiles(fileInput.files);
+  fileInput.value = '';
+});
+
+function matchIndex(name){
+  const n = name.toLowerCase();
+  const tests = [
+    ['fiz','физ','phys','physical'],
+    ['gips','гипс','hypso','height','высот'],
+    ['uklon','уклон','slope'],
+    ['ekspoz','экспоз','expoz','aspect','orient']
+  ];
+  for (let i = 0; i < tests.length; i++){
+    if (tests[i].some(k => n.includes(k))) return i;
+  }
+  return -1;
+}
+
+function setImage(i, file){
+  const s = SHEETS[i];
+  if (s.user && s.src && s.src.startsWith('blob:')) URL.revokeObjectURL(s.src);
+  s.src = URL.createObjectURL(file);
+  s.loaded = true;
+  s.user = true;
+}
+
+function assignFiles(list){
+  const files = [...list].filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+
+  const forced = fileInput.dataset.key;
+  if (forced){
+    const i = SHEETS.findIndex(s => s.key === forced);
+    if (i >= 0) setImage(i, files[0]);
+    finishAssign();
+    return;
+  }
+
+  const rest = [];
+  files.forEach(f => {
+    const i = matchIndex(f.name);
+    if (i >= 0 && !SHEETS[i].user) setImage(i, f);
+    else rest.push(f);
+  });
+
+  let r = 0;
+  SHEETS.forEach((s,i) => {
+    if (!s.user && !s.loaded && r < rest.length) setImage(i, rest[r++]);
+  });
+
+  finishAssign();
+}
+
+function finishAssign(){ reset(); renderPanes(); renderCards(); }
+
+/* ══════════ DRAG & DROP ══════════ */
+const overlay = document.getElementById('dropOverlay');
+let dragDepth = 0;
+window.addEventListener('dragenter', e => {
+  if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+  dragDepth++; overlay.classList.add('on');
+});
+window.addEventListener('dragover', e => { e.preventDefault(); });
+window.addEventListener('dragleave', () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) overlay.classList.remove('on');
+});
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  dragDepth = 0; overlay.classList.remove('on');
+  if (e.dataTransfer?.files?.length) assignFiles(e.dataTransfer.files);
+});
+
+/* ══════════ СТАРТ ══════════ */
+SHEETS.forEach(s => {
+  const probe = new Image();
+  probe.onload = () => { s.loaded = true; renderPanes(); renderCards(); };
+  probe.onerror = () => { s.loaded = false; renderPanes(); renderCards(); };
+  probe.src = s.file;
+});
+
+renderPanes();
+renderCards();
+</script>
+
+</body>
+</html>
